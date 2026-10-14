@@ -1,13 +1,13 @@
 # Modosu Offline — Quick Start
 
-Requires Windows, Windows PowerShell 5.1, and osu!lazer. The manager keeps beatmaps, profiles, scores, and replays in lazer's normal data folder. Offline mode blocks network access for the entire lazer installation, even if you select another ruleset. Closing lazer does not restore network access.
+Requires Windows, PowerShell, and osu!lazer. The manager keeps beatmaps, profiles, scores, and replays in lazer's normal data folder. Offline mode blocks network access for the entire lazer installation, even if you select another ruleset. Closing lazer does not restore network access.
 
 ## Start an offline practice session
 
-1. Extract the entire package outside lazer's `rulesets` folder. Do not copy the DLL into the game manually.
-2. Close lazer and its updater. Run **Launch Modosu Offline.cmd** as a normal user.
-3. Choose **1 — Offline practice** and approve the Windows prompts for firewall changes. The manager launches lazer without elevation.
-4. Wait for **Modosu loaded**. If loading is not confirmed within 60 seconds, close lazer and check the manager's diagnostic. The firewall block remains in place.
+1. Close lazer. 
+2. Run **Launch Modosu Offline.cmd** as a normal user. 
+2. Choose **1 — Offline practice** and approve the Windows prompts for firewall changes. The manager launches lazer without elevation.
+3. Wait for **Modosu loaded**. If loading is not confirmed within 60 seconds, close lazer and check the manager's diagnostic. The firewall block remains in place.
 
 The manager detects `%LOCALAPPDATA%\osulazer` and `%APPDATA%\osu`. If your paths differ, it prompts for them. You can also pass custom paths:
 
@@ -49,8 +49,6 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Validate-Packa
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Build-Bundle.ps1
 ```
 
-Validation runs NUnit, 29 transition scenarios, seven visual scenes with temporary data, and a TCP probe to `api.nuget.org:443`. It requests UAC approval for temporary firewall rules and checks initial connectivity, blocking, restoration, legacy migration, and preservation of a sentinel rule. No osu! account is used. Review screenshots in `screenshots`; reports are stored in `.cache/offline-validation`.
+Validation runs NUnit, 29 transition scenarios, 7 visual scenes with temporary data, and a TCP probe to `api.nuget.org:443`. It requests UAC approval for temporary firewall rules and checks initial connectivity, blocking, restoration, legacy migration, and preservation of a sentinel rule. No osu! account is used. Review screenshots in `screenshots`; reports are stored in `.cache/offline-validation`.
 
 Package validation does not prove compatibility with every lazer version or approval by the osu! team. The protected first launch must confirm that lazer actually loaded the ruleset. If confirmation fails, close lazer and keep the network block in place.
-
-Derived from [p-720/mosu](https://github.com/p-720/mosu); original licenses and attribution are retained. Tachyon is an official experimental osu!lazer channel.
