@@ -4,7 +4,7 @@ Modosu is an osu!lazer practice ruleset for local play. This Windows fork includ
 
 ## Use
 
-Extract the Windows package outside lazer's `rulesets` folder and follow [`manager/GUIDE.md`](manager/GUIDE.md). Do not install the DLL manually. The manager requires Windows Firewall and administrator approval for firewall changes; lazer itself runs as your normal user.
+Extract the Windows package outside lazer's `rulesets` folder and follow [`manager/GUIDE.md`](manager/GUIDE.md). Do not install the DLL manually (If you do, it is at your own peril). The manager requires Windows Firewall and administrator approval for firewall changes; lazer itself runs as your normal user.
 
 The project keeps local practice mods, profiles, scores, statistics, and replays. The network block applies to the whole lazer client, including when another ruleset is selected. Online mode is restored manually through the manager.
 
@@ -20,7 +20,10 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Validate-Packa
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Build-Bundle.ps1
 ```
 
-The ZIP is written to `artifacts/ModosuOffline-Windows.zip`. Validation does not install anything into lazer. A successful package validation does not confirm compatibility with every lazer version or imply osu! team approval; the protected first launch must confirm that lazer actually loaded the ruleset.
+The ZIP is written to `artifacts/ModosuOffline-Windows.zip`. 
+
+Validation does not install anything into lazer. 
+A successful package validation does not confirm compatibility with every lazer version; the protected first launch must confirm that lazer actually loaded the ruleset.
 
 ## Project history
 
