@@ -8,7 +8,7 @@ $mutex = [Threading.Mutex]::new($false, 'Local\' + $context.RuleGroup + '-Operat
 $acquired = $false
 try {
     try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
-    if (!$acquired) { throw 'Une operation administrateur est deja en cours. Attendez sa fin et relancez le diagnostic.' }
+    if (!$acquired) { throw 'Another administrator operation is in progress. Wait for it to finish, then run diagnostics again.' }
     switch ($request.Action) {
         'Block' { Enable-NetworkBlock $context }
         'Verify' { Assert-NetworkBlocked $context }
@@ -36,7 +36,7 @@ try {
             try { Assert-NetworkBlocked $context; $blocked = $true } catch { }
             $result = @{ Success = $true; Blocked = $blocked; RuleCount = $owned.Count }
         }
-        default { throw 'Action pare-feu inconnue.' }
+        default { throw 'Unknown firewall action.' }
     }
     if (!$result) { $result = @{ Success = $true } }
 } catch { $result = @{ Success = $false; Error = $_.Exception.Message } }

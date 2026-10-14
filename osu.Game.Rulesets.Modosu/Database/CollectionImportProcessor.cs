@@ -81,7 +81,7 @@ namespace osu.Game.Rulesets.Modosu.Database
                 if (missingSetIds.Count > 0)
                     schedule(() => notifications.Post(new SimpleNotification
                     {
-                        Text = $"Mode hors ligne : {missingSetIds.Count} cartes absentes. Importez leurs fichiers .osz localement."
+                        Text = $"Offline mode: {missingSetIds.Count} beatmaps are missing. Import their .osz files locally."
                     }));
 
                 if (importedScores > 0)

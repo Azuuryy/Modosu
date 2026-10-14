@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..\ModosuOffline.Core.psm1') -Force
 $probeBuild = Join-Path $PSScriptRoot 'FirewallProbe\bin\Release\net10.0'
-if (!(Test-Path -LiteralPath (Join-Path $probeBuild 'FirewallProbe.exe'))) { throw 'Compilez FirewallProbe en Release avant le test.' }
+if (!(Test-Path -LiteralPath (Join-Path $probeBuild 'FirewallProbe.exe'))) { throw 'Build FirewallProbe in Release before running this test.' }
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('ModosuOffline-firewall-' + [Guid]::NewGuid().ToString('N'))
 $gameDir = Join-Path $fixture 'lazer\current'
 [IO.Directory]::CreateDirectory($gameDir) | Out-Null
@@ -21,7 +21,7 @@ function Invoke-TestHelper([string] $Mode) {
     $request = @{ Action = $Mode; InstallDir = $ctx.InstallDir; DataDir = $ctx.DataDir; PackagePath = $ctx.PackagePath; VaultDir = $ctx.VaultDir }
     [IO.File]::WriteAllText($requestFile, ($request | ConvertTo-Json))
     & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy RemoteSigned -File (Join-Path $PSScriptRoot '..\ModosuOffline.Firewall.ps1') -RequestFile $requestFile
-    if ($LASTEXITCODE -ne 0) { throw "Helper $Mode en echec." }
+    if ($LASTEXITCODE -ne 0) { throw "Helper operation failed: $Mode." }
     $helperResult = Get-Content -LiteralPath ($requestFile + '.result') -Raw | ConvertFrom-Json
     if ($helperResult.Success -ne $true) { throw $helperResult.Error }
 }
@@ -32,37 +32,37 @@ $legacyGroup = $initialGroup.Replace('ModosuOffline-', 'MOsuOffline-')
 try {
     Assert-FirewallEnabled
     & $ctx.GamePath
-    if ($LASTEXITCODE -ne 0) { throw 'Connexion initiale impossible : test non concluant, pas de validation.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Initial connection failed; the test is inconclusive and validation is denied.' }
     New-NetFirewallRule -Name $sentinel -DisplayName 'Modosu Offline integration sentinel' -Group ($ctx.RuleGroup + '-foreign') -Program $ctx.GamePath -Direction Outbound -Action Allow -Profile Any -ErrorAction Stop | Out-Null
     Invoke-TestHelper 'Offline'
-    if (!(Test-Path -LiteralPath $ctx.DllPath)) { throw 'DLL non installee dans la fixture.' }
+    if (!(Test-Path -LiteralPath $ctx.DllPath)) { throw 'DLL was not installed in the test fixture.' }
     Assert-NetworkBlocked $ctx
     & $ctx.GamePath
-    if ($LASTEXITCODE -ne 3) { throw 'La sonde a pu se connecter malgre le blocage.' }
+    if ($LASTEXITCODE -ne 3) { throw 'The probe connected despite the firewall block.' }
     Invoke-TestHelper 'Online'
-    if (Test-Path -LiteralPath $ctx.DllPath) { throw 'DLL encore presente dans la fixture.' }
-    if (@(Get-OwnedFirewallRules $ctx).Count -ne 0) { throw 'Regles de test residuelles.' }
-    if (!(Get-NetFirewallRule -Name $sentinel -ErrorAction Stop)) { throw 'Une regle tierce a ete supprimee.' }
+    if (Test-Path -LiteralPath $ctx.DllPath) { throw 'DLL is still present in the test fixture.' }
+    if (@(Get-OwnedFirewallRules $ctx).Count -ne 0) { throw 'Test firewall rules remain.' }
+    if (!(Get-NetFirewallRule -Name $sentinel -ErrorAction Stop)) { throw 'A third-party firewall rule was removed.' }
     & $ctx.GamePath
-    if ($LASTEXITCODE -ne 0) { throw 'Connexion non retablie apres retrait du blocage.' }
-    # Recreate an owned legacy installation only inside the temporary fixture.
+    if ($LASTEXITCODE -ne 0) { throw 'Connectivity was not restored after removing the block.' }
+    # Recreate a managed legacy installation only inside the temporary fixture.
     [IO.Directory]::CreateDirectory($ctx.RulesetsDir) | Out-Null
     Copy-Item -LiteralPath $dll -Destination $ctx.LegacyDllPath
     $ctx.RuleGroup = $legacyGroup
     Save-OfflineState $ctx 'Offline' (Get-FileHash -LiteralPath $ctx.LegacyDllPath).Hash
     Enable-NetworkBlock $ctx
     $ctx = New-OfflineContext $ctx.InstallDir $ctx.DataDir $ctx.PackagePath $ctx.VaultDir
-    if ($ctx.RuleGroup -ne $legacyGroup) { throw 'Ancien groupe de regles non repris.' }
+    if ($ctx.RuleGroup -ne $legacyGroup) { throw 'Legacy firewall rule group was not preserved.' }
     Invoke-TestHelper 'Offline'
-    if ((Test-Path -LiteralPath $ctx.LegacyDllPath) -or !(Test-Path -LiteralPath $ctx.DllPath)) { throw 'Migration DLL incomplete.' }
+    if ((Test-Path -LiteralPath $ctx.LegacyDllPath) -or !(Test-Path -LiteralPath $ctx.DllPath)) { throw 'DLL migration is incomplete.' }
     Assert-NetworkBlocked $ctx
     & $ctx.GamePath
-    if ($LASTEXITCODE -ne 3) { throw 'La migration a perdu le blocage reseau.' }
+    if ($LASTEXITCODE -ne 3) { throw 'Network blocking was lost during migration.' }
     Invoke-TestHelper 'Online'
-    if ((Test-Path -LiteralPath $ctx.LegacyDllPath) -or (Test-Path -LiteralPath $ctx.DllPath) -or @(Get-OwnedFirewallRules $ctx).Count -ne 0) { throw 'Ancienne installation non retiree.' }
-    if (!(Get-NetFirewallRule -Name $sentinel -ErrorAction Stop)) { throw 'Une regle tierce a ete supprimee pendant la migration.' }
+    if ((Test-Path -LiteralPath $ctx.LegacyDllPath) -or (Test-Path -LiteralPath $ctx.DllPath) -or @(Get-OwnedFirewallRules $ctx).Count -ne 0) { throw 'Legacy installation was not removed.' }
+    if (!(Get-NetFirewallRule -Name $sentinel -ErrorAction Stop)) { throw 'A third-party firewall rule was removed during migration.' }
     & $ctx.GamePath
-    if ($LASTEXITCODE -ne 0) { throw 'Connexion non retablie apres migration.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Connectivity was not restored after migration.' }
     $result.LegacyMigrationValidated = $true
     $result.Validated = $true
 } catch {
@@ -74,8 +74,8 @@ try {
     }
     [IO.File]::WriteAllText([IO.Path]::GetFullPath($OutputPath), ($result | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     $resolved = (Resolve-Path -LiteralPath $fixture).ProviderPath
-    if ($resolved -ne [IO.Path]::GetFullPath($fixture) -or !(Split-Path $resolved -Leaf).StartsWith('ModosuOffline-firewall-')) { throw 'Nettoyage temporaire refuse.' }
+    if ($resolved -ne [IO.Path]::GetFullPath($fixture) -or !(Split-Path $resolved -Leaf).StartsWith('ModosuOffline-firewall-')) { throw 'Refusing unsafe temporary-directory cleanup.' }
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 if (!$result.Validated) { throw $result.Error }
-Write-Host 'PASS pare-feu Windows : connexion, blocage, retour reseau, migration MOsu et preservation regle tierce.'
+Write-Host 'PASS Windows Firewall: connectivity, blocking, restoration, MOsu migration, and third-party rule preservation.'

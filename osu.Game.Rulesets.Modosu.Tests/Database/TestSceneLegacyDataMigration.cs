@@ -22,7 +22,7 @@ namespace osu.Game.Rulesets.Modosu.Tests.Database
             Guid scoreId = Guid.NewGuid();
             Guid officialScoreId = Guid.NewGuid();
             Guid presetId = Guid.NewGuid();
-            const string profiles = "[{\"Name\":\"Profil local conservé\"}]";
+            const string profiles = "[{\"Name\":\"Preserved local profile\"}]";
 
             AddStep("seed old practice data", () => Realm.Write(realm =>
             {

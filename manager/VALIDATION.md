@@ -1,22 +1,22 @@
-# Validation du paquet Windows Modosu
+# Modosu Offline Windows Package Validation
 
-Contrôles terminés le 5 octobre 2026, via `manager/Validate-Package.ps1`, Windows PowerShell 5.1 et .NET 10. Aucun déploiement dans le jeu de l'utilisateur.
+Controls completed on October 14, 2026, using `manager/Validate-Package.ps1`, Windows PowerShell 5.1, and .NET 10. The user's game installation was not modified.
 
-| Contrôle | Résultat |
+| Check | Result |
 |---|---|
-| Restauration et compilation Release | Réussite ; 3 avertissements nullable existants dans le test des replays |
-| NUnit | 13 tests réussis : identité personnalisée, flags des mods, déconnexion et reconnexion, transformations locales RandomV2/CircleGeneration, restauration des objets, SpacingAdjust |
-| Bascule PowerShell | 29 scénarios réussis sur dossiers temporaires : répétitions, refus des droits, pare-feu désactivé, jeu actif, nouvelle ouverture pendant le retrait, DLL étrangère/renommée, migration depuis MOsu, interruptions après chaque mutation et reprise |
-| Tests visuels | Imports JSON/cartes et anciens préréglages, migration des paramètres/profils/scores/préréglages sans perte des références de replay, profils et scores locaux, RandomV2, CircleGeneration, enregistrement et lecture des replays réussis ; captures inspectées |
-| Pare-feu réel | Sonde temporaire : connexion TCP initiale, blocage après bascule hors ligne par le helper réel, DLL présente dans la fixture, retrait par le helper, DLL absente, connexion rétablie ; même contrôle après migration d'un ancien journal MOsu et de ses règles ; règle témoin préservée et nettoyage des règles de test |
-| Client officiel installé | **Modosu non validé** : aucune installation ni tentative de chargement de la nouvelle DLL dans le jeu de l'utilisateur |
+| Restore and Release build | Passed; three pre-existing nullable warnings in replay tests |
+| NUnit | 13 passed: custom ruleset identity, mod flags, disconnect/reconnect behavior, local RandomV2/CircleGeneration transforms, object restoration, and SpacingAdjust |
+| PowerShell transitions | 29 temporary-directory scenarios passed: repeated transitions, permission denial, disabled firewall, active game, process restart during removal, foreign/renamed DLLs, MOsu migration, interruptions after each mutation, and recovery |
+| Visual tests | Seven scenes passed: JSON/beatmap and preset imports; migration of settings, profiles, scores, presets, and replay references; local profiles and scores; RandomV2; CircleGeneration; replay save and playback. Screenshots were generated. |
+| Windows Firewall integration | Temporary probe verified initial TCP connectivity, blocking through the real helper, DLL installation/removal, connectivity restoration, legacy MOsu migration, preservation of a sentinel rule, and cleanup of test rules |
+| Installed official client | **Not validated**: Modosu was not installed or loaded in the user's game |
 
-Les sept scènes sont `TestSceneCollectionImport`, `TestSceneUserProfileOverlay`, `TestSceneReplayPersistence`, `TestSceneAutoplayRandomV2`, `TestSceneOsuModRandomV2`, `TestSceneLegacyDataMigration`, `TestSceneModPresetImport`. Elles utilisent une API factice et des données temporaires ; les caches du lanceur sont isolés. La sonde communique seulement avec `api.nuget.org:443`, sans compte ni endpoint osu!.
+The seven visual scenes were `TestSceneCollectionImport`, `TestSceneUserProfileOverlay`, `TestSceneReplayPersistence`, `TestSceneAutoplayRandomV2`, `TestSceneOsuModRandomV2`, `TestSceneLegacyDataMigration`, and `TestSceneModPresetImport`. They used a fake API and temporary data; launcher caches were isolated. The firewall probe connected only to `api.nuget.org:443`, without an osu! account or osu! endpoint.
 
-Les interruptions sont injectées sous forme d'exceptions entre les étapes. Les refus UAC et le pare-feu désactivé sont simulés dans ces tests ; aucune désactivation du pare-feu réel n'a été nécessaire. Une coupure d'alimentation ou un arrêt forcé du processus administrateur pendant un appel système n'est pas couvert par ces injections : après cela, le diagnostic doit revérifier la protection réelle avant tout lancement.
+Interruptions were injected as exceptions between operations. UAC denial and disabled firewall were simulated in these tests; the real firewall was not disabled. Power loss or forced termination of the administrator process during a system call is not covered. Run diagnostics after such an interruption before launching the game.
 
-La copie d'encodage du replay utilise osu!standard uniquement pour produire le `.osr`. Le test vérifie que le score enregistré conserve `modosu` et `OnlineID = -1`, et que son replay peut être relu.
+Replay encoding uses osu!standard only in a temporary copy to create the `.osr` file. The test confirms that the saved score keeps `modosu` and `OnlineID = -1`, and that the replay can be read back.
 
-Les rapports locaux sont dans `.cache/offline-validation`, les captures dans `screenshots`. Le fichier `package/validation.json` lie le résultat à la DLL et au module PowerShell par SHA-256. Une nouvelle compilation simple remet le verrou en place ; exécuter la validation avant une nouvelle livraison.
+Local reports are in `.cache/offline-validation`; screenshots are in `screenshots`. `package/validation.json` binds the validation result to the DLL and PowerShell module using SHA-256. A new build invalidates the receipt; rerun validation before creating a new release package.
 
-Ce rapport ne constitue ni une approbation d'osu! ni une garantie de compatibilité avec le client installé. Le premier lancement doit rester protégé et confirmer le chargement réel. Un refus conserve le blocage et doit être traité comme une incompatibilité.
+This report is not osu! team approval and does not guarantee compatibility with the installed client. Keep the first launch protected and require actual load confirmation. A load failure is an incompatibility and must leave the firewall block active.

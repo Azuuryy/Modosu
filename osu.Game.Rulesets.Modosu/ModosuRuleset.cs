@@ -251,11 +251,11 @@ namespace osu.Game.Rulesets.Modosu
 
         public override IBeatmapVerifier CreateBeatmapVerifier() => new OsuBeatmapVerifier();
 
-        public override string Description => "Modosu Offline — entraînement local";
+        public override string Description => "Modosu Offline — local practice";
 
         public override string ShortName => SHORT_NAME;
 
-        public override string PlayingVerb => "Entraînement local hors ligne";
+        public override string PlayingVerb => "Practising offline";
 
         public override RulesetSettingsSubsection CreateSettings() => new ModosuSettingsSubsection(this);
 
