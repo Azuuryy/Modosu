@@ -13,7 +13,7 @@ The project keeps local practice mods, profiles, scores, statistics, and replays
 Requirements: Windows, .NET 10, and the `osu` submodule.
 
 ```powershell
-git clone --recurse-submodules https://github.com/Debuzzz/mosu-offline.git
+git clone --recurse-submodules https://github.com/Azuuryy/mosu-offline.git
 cd mosu-offline
 dotnet restore Modosu.sln --packages .cache/nuget
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Validate-Package.ps1
