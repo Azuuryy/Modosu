@@ -21,7 +21,7 @@ function Invoke-FirewallHelper($Context, [string] $Operation) {
     try {
         $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $helperProcess = Start-Process -FilePath $powershell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'RemoteSigned', '-EncodedCommand', $encoded) -Verb RunAs -WindowStyle Hidden -Wait -PassThru
-        if (!(Test-Path -LiteralPath ($requestFile + '.result'))) { throw 'Diagnostic administrateur absent. Aucune bascule validée.' }
+        if (!(Test-Path -LiteralPath ($requestFile + '.result'))) { throw 'Administrator result is missing. No transition was validated.' }
         $result = Get-Content -LiteralPath ($requestFile + '.result') -Raw | ConvertFrom-Json
         if ($helperProcess.ExitCode -ne 0 -or !$result.Success) { throw $result.Error }
         return $result
@@ -34,11 +34,11 @@ function Start-OfflineLazer($Context) {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Relancez le gestionnaire sans droits administrateur. Le jeu ne sera pas lancé avec élévation.'
+        throw 'Run the manager as a standard user. The game must not be launched with administrator privileges.'
     }
     Assert-LazerClosed $Context
     Invoke-FirewallHelper $Context 'Verify' | Out-Null
-    Write-Host 'Premier lancement : la compatibilité ne sera confirmée que si le client charge réellement la DLL. En cas de refus, le réseau restera bloqué.'
+    Write-Host 'First launch: compatibility is confirmed only if the client actually loads the DLL. If loading fails, network access remains blocked.'
     $session = [Guid]::NewGuid().ToString('N')
     $ready = Join-Path $Context.VaultDir ($session + '.ready')
     $oldReady = $env:MODOSU_OFFLINE_READY_FILE
@@ -56,7 +56,7 @@ function Start-OfflineLazer($Context) {
         if (Test-Path -LiteralPath $ready) {
             $message = @(Get-Content -LiteralPath $ready)
             if ($message.Count -eq 2 -and $message[0] -eq $session -and $message[1] -eq $game.Id.ToString()) {
-                Write-Host 'Modosu chargé. Entraînement hors ligne actif. Retour en ligne uniquement par le gestionnaire.' -ForegroundColor Green
+                Write-Host 'Modosu loaded. Offline practice is active. Return online only through the manager.' -ForegroundColor Green
                 Remove-Item -LiteralPath $ready -Force
                 return
             }
@@ -64,19 +64,19 @@ function Start-OfflineLazer($Context) {
         if ($game.HasExited) { break }
         Start-Sleep -Milliseconds 250
     }
-    throw 'Chargement Modosu non confirmé : version incompatible, ruleset bloqué ou démarrage incomplet. Fermez lazer. Le réseau reste bloqué ; aucun contrôle du client ne sera contourné.'
+    throw 'Modosu load was not confirmed: the client version may be incompatible, the ruleset may be blocked, or startup may be incomplete. Close lazer. Network access remains blocked; no client checks will be bypassed.'
 }
 
 try {
     if ($Action -eq 'Menu') {
-        Write-Host 'Modosu Offline — gestionnaire de bascule'
-        Write-Host '1. Activer l''entraînement hors ligne et lancer lazer'
-        Write-Host '2. Retirer Modosu et revenir au jeu en ligne'
-        Write-Host '3. Diagnostic du mode et des protections'
-        Write-Host '0. Quitter'
-        switch (Read-Host 'Choix') { '1' { $Action = 'Offline' }; '2' { $Action = 'Online' }; '3' { $Action = 'Status' }; '0' { return }; default { throw 'Choix invalide.' } }
-        if (!(Test-Path -LiteralPath (Join-Path $InstallDir 'current\osu!.exe'))) { $InstallDir = Read-Host 'Dossier d''installation lazer (contenant current)' }
-        if (!(Test-Path -LiteralPath $DataDir)) { $DataDir = Read-Host 'Dossier de données lazer (Ouvrir le dossier osu! dans les paramètres)' }
+        Write-Host 'Modosu Offline — mode manager'
+        Write-Host '1. Enable offline practice and launch lazer'
+        Write-Host '2. Remove Modosu and return online'
+        Write-Host '3. Check mode and protections'
+        Write-Host '0. Exit'
+        switch (Read-Host 'Choose an option') { '1' { $Action = 'Offline' }; '2' { $Action = 'Online' }; '3' { $Action = 'Status' }; '0' { return }; default { throw 'Invalid option.' } }
+        if (!(Test-Path -LiteralPath (Join-Path $InstallDir 'current\osu!.exe'))) { $InstallDir = Read-Host 'lazer installation folder (containing current)' }
+        if (!(Test-Path -LiteralPath $DataDir)) { $DataDir = Read-Host 'lazer data folder (open the osu! folder from settings)' }
     }
     # Existing installations keep their journal and rule ownership through the rename.
     $legacyVault = Join-Path $env:LOCALAPPDATA 'MOsuOfflineManager'
@@ -85,7 +85,7 @@ try {
         (Test-Path -LiteralPath (Join-Path $legacyVault 'state.json'))) { $VaultDir = $legacyVault }
     $context = New-OfflineContext $InstallDir $DataDir $PackagePath $VaultDir
     $mutex = [Threading.Mutex]::new($false, 'Local\' + $context.RuleGroup + '-UI')
-    if (!$mutex.WaitOne(0)) { throw 'Une autre bascule est déjà en cours.' }
+    if (!$mutex.WaitOne(0)) { throw 'Another mode transition is already in progress.' }
     try {
         if ($Action -eq 'Status') {
             $status = Invoke-FirewallHelper $context 'Status'
@@ -93,12 +93,12 @@ try {
             $installed = (Test-Path -LiteralPath $context.DllPath) -or $legacyInstalled
             Assert-NoAdditionalModosuCopies $context
             if ($installed) { Assert-OwnedDll $context }
-            $mode = if ($installed -and $status.Blocked) { 'Hors ligne protégé' } elseif (!$installed -and $status.RuleCount -eq 0) { 'Modosu retiré / mode en ligne' } else { 'État incomplet : ne pas lancer le jeu' }
-            Write-Host "Mode : $mode"
-            Write-Host "DLL installée : $installed ; protection complète : $($status.Blocked) ; règles gérées : $($status.RuleCount)"
-            if ($legacyInstalled) { Write-Host 'Ancienne DLL MOsu présente : elle sera sauvegardée puis retirée lors de la bascule.' }
-            Write-Host "Journal et stockage : $($context.VaultDir)"
-            foreach ($exe in $context.Executables) { Write-Host "Exécutable vérifié : $exe" }
+            $mode = if ($installed -and $status.Blocked) { 'Protected offline' } elseif (!$installed -and $status.RuleCount -eq 0) { 'Modosu removed / online mode' } else { 'Incomplete state: do not launch the game' }
+            Write-Host "Mode: $mode"
+            Write-Host "DLL installed: $installed; full network block: $($status.Blocked); managed rules: $($status.RuleCount)"
+            if ($legacyInstalled) { Write-Host 'Legacy MOsu DLL detected; it will be backed up and removed during the transition.' }
+            Write-Host "Journal and storage: $($context.VaultDir)"
+            foreach ($exe in $context.Executables) { Write-Host "Verified executable: $exe" }
             return
         }
         if ($Action -eq 'Offline') {
@@ -106,7 +106,7 @@ try {
         }
         Invoke-FirewallHelper $context $Action | Out-Null
         if ($Action -eq 'Offline' -and !$NoLaunch) { Start-OfflineLazer $context }
-        elseif ($Action -eq 'Online') { Write-Host 'Modosu retiré et règles du gestionnaire retirées. Vous pouvez lancer lazer normalement et vous reconnecter manuellement.' }
+        elseif ($Action -eq 'Online') { Write-Host 'Modosu and the manager-owned firewall rules were removed. You can launch lazer normally and sign in manually.' }
     } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
 } catch {
     Write-Error $_.Exception.Message

@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 
 function Get-CanonicalPath([string] $Path) {
-    if ([string]::IsNullOrWhiteSpace($Path)) { throw 'Chemin vide.' }
+    if ([string]::IsNullOrWhiteSpace($Path)) { throw 'Path is empty.' }
     return [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar)
 }
 
@@ -17,7 +17,7 @@ function Assert-NoSymbolicLink([string] $Path) {
     while ($part) {
         if (Test-Path -LiteralPath $part) {
             $item = Get-Item -LiteralPath $part -Force
-            if ($item.LinkType) { throw "Lien symbolique non autorisé : $part" }
+            if ($item.LinkType) { throw "Symbolic links are not allowed: $part" }
         }
         $parent = [IO.Path]::GetDirectoryName($part)
         if ($parent -eq $part) { break }
@@ -35,13 +35,13 @@ function New-OfflineContext {
     foreach ($path in @($install, $data, $package, $vault, $rulesets)) { Assert-NoSymbolicLink $path }
     if ($vault -eq $rulesets -or $vault.StartsWith($rulesets + '\', [StringComparison]::OrdinalIgnoreCase) -or
         $package -eq $rulesets -or $package.StartsWith($rulesets + '\', [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Le stockage et le paquet doivent être hors du dossier rulesets.'
+        throw 'The package and manager storage must be outside the rulesets folder.'
     }
     $game = Join-Path $install 'current\osu!.exe'
-    if (!(Test-Path -LiteralPath $game -PathType Leaf)) { throw "Installation lazer introuvable : $game" }
+    if (!(Test-Path -LiteralPath $game -PathType Leaf)) { throw "lazer installation was not found: $game" }
     $executables = @(Get-ChildItem -LiteralPath $install -Filter '*.exe' -File -Recurse -ErrorAction Stop |
         ForEach-Object { Assert-NoSymbolicLink $_.FullName; $_.FullName } | Sort-Object -Unique)
-    if ($executables.Count -eq 0) { throw 'Aucun exécutable à protéger.' }
+    if ($executables.Count -eq 0) { throw 'No executables were found to protect.' }
     $digest = Get-PathDigest ($install + '|' + $data)
     $group = 'ModosuOffline-' + $digest
     $legacyGroup = 'MOsuOffline-' + $digest
@@ -69,10 +69,10 @@ function Assert-LazerClosed($Context) {
         # Access to a matching process must be verifiable. Do not assume an inaccessible
         # osu! process is safe. Stable may run elsewhere, but unverifiable matches stop us.
         if ($process.ProcessName -notin $names) { continue }
-        try { $path = $process.Path } catch { throw 'Impossible de vérifier les processus osu!. Fermez le jeu et réessayez.' }
-        if (!$path) { throw 'Un processus osu!/Update inaccessible est actif.' }
+        try { $path = $process.Path } catch { throw 'Could not verify an osu! process. Close the game and try again.' }
+        if (!$path) { throw 'An inaccessible osu!/Update process is running.' }
         if ($path.StartsWith($Context.InstallDir + '\', [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'Fermez osu!lazer et son programme de mise à jour avant la bascule.'
+            throw 'Close osu!lazer and its updater before changing modes.'
         }
     }
 }
@@ -86,7 +86,7 @@ function Get-OwnedFirewallRules($Context) {
 function Assert-FirewallEnabled {
     $profiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop)
     if ($profiles.Count -ne 3 -or @($profiles | Where-Object { $_.Enabled -ne $true }).Count -gt 0) {
-        throw 'Le pare-feu doit être activé sur les profils Domaine, Privé et Public. Aucune activation automatique.'
+        throw 'Windows Firewall must be enabled for the Domain, Private, and Public profiles. It will not be enabled automatically.'
     }
 }
 
@@ -112,7 +112,7 @@ function Assert-NetworkBlocked($Context) {
             $name = Get-RuleName $Context $exe $direction
             $rule = @($rules | Where-Object { $_.Name -eq $name })
             if ($rule.Count -ne 1 -or !(Test-RuleProtection $rule[0] $exe $direction)) {
-                throw "Protection réseau absente ou incomplète : $exe ($direction)."
+                throw "Network protection is missing or incomplete: $exe ($direction)."
             }
         }
     }
@@ -128,10 +128,10 @@ function Enable-NetworkBlock($Context) {
             $existing = @($allRules | Where-Object { $_.Name -eq $name })
             if ($existing.Count -gt 0) {
                 if ($existing.Count -ne 1 -or $existing[0].Group -ne $Context.RuleGroup -or !(Test-RuleProtection $existing[0] $exe $direction)) {
-                    throw "Règle conflictuelle : $name. Aucune règle existante modifiée."
+                    throw "Conflicting firewall rule: $name. No existing rule was changed."
                 }
             } else {
-                New-NetFirewallRule -Name $name -DisplayName "Modosu Offline : $direction $exe" -Group $Context.RuleGroup `
+                New-NetFirewallRule -Name $name -DisplayName "Modosu Offline: $direction $exe" -Group $Context.RuleGroup `
                     -Program $exe -Direction $direction -Action Block -Enabled True -Profile Any -Protocol Any -ErrorAction Stop | Out-Null
             }
         }
@@ -141,17 +141,17 @@ function Enable-NetworkBlock($Context) {
 
 function Disable-NetworkBlock($Context) {
     Assert-LazerClosed $Context
-    if ((Test-Path -LiteralPath $Context.DllPath) -or (Test-Path -LiteralPath $Context.LegacyDllPath)) { throw 'Une DLL de pratique est encore installée. Le réseau reste bloqué.' }
+    if ((Test-Path -LiteralPath $Context.DllPath) -or (Test-Path -LiteralPath $Context.LegacyDllPath)) { throw 'A practice ruleset DLL is still installed. Network access remains blocked.' }
     Assert-NoAdditionalModosuCopies $Context
     $rules = @(Get-OwnedFirewallRules $Context)
     foreach ($rule in $rules) {
-        if (!$rule.Name.StartsWith($Context.RuleGroup + '-', [StringComparison]::Ordinal)) { throw 'Règle de propriété ambiguë.' }
+        if (!$rule.Name.StartsWith($Context.RuleGroup + '-', [StringComparison]::Ordinal)) { throw 'Firewall rule ownership is ambiguous.' }
     }
     Assert-LazerClosed $Context
     foreach ($rule in $rules) {
         Remove-NetFirewallRule -Name $rule.Name -ErrorAction Stop
     }
-    if (@(Get-OwnedFirewallRules $Context).Count -ne 0) { throw 'Certaines règles de blocage restent actives.' }
+    if (@(Get-OwnedFirewallRules $Context).Count -ne 0) { throw 'Some network-blocking rules are still active.' }
 }
 
 function Save-OfflineState($Context, [string] $Mode, [string] $DllHash) {
@@ -166,7 +166,7 @@ function Save-OfflineState($Context, [string] $Mode, [string] $DllHash) {
 function Get-OfflineState($Context) {
     if (!(Test-Path -LiteralPath $Context.StateFile -PathType Leaf)) { return $null }
     $state = Get-Content -LiteralPath $Context.StateFile -Raw | ConvertFrom-Json
-    if ($state.DllPath -notin @($Context.DllPath, $Context.LegacyDllPath) -or $state.RuleGroup -ne $Context.RuleGroup) { throw 'Le journal appartient à une autre installation.' }
+    if ($state.DllPath -notin @($Context.DllPath, $Context.LegacyDllPath) -or $state.RuleGroup -ne $Context.RuleGroup) { throw 'The state journal belongs to a different installation.' }
     return $state
 }
 
@@ -176,7 +176,7 @@ function Assert-OwnedDll($Context) {
         if (!(Test-Path -LiteralPath $path -PathType Leaf)) { continue }
         Assert-NoSymbolicLink $path
         if (!$state -or $state.DllPath -ne $path -or $state.DllHash -ne (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash) {
-            throw 'DLL de pratique préexistante ou modifiée : aucune suppression ni écrasement automatique. Le réseau reste bloqué.'
+            throw 'The practice DLL already exists or was modified. It will not be overwritten or removed automatically. Network access remains blocked.'
         }
     }
 }
@@ -184,7 +184,7 @@ function Assert-OwnedDll($Context) {
 function Park-OwnedDll($Context, [string] $Path, [string] $Hash) {
     $parked = Join-Path $Context.VaultDir ('parked-' + $Hash + '.dll')
     Copy-Item -LiteralPath $Path -Destination $parked -Force
-    if ((Get-FileHash -LiteralPath $parked).Hash -ne $Hash) { throw 'Sauvegarde DLL invalide.' }
+    if ((Get-FileHash -LiteralPath $parked).Hash -ne $Hash) { throw 'The parked DLL backup failed its hash check.' }
     return $parked
 }
 
@@ -197,18 +197,18 @@ function Assert-NoAdditionalModosuCopies($Context) {
         try { $assembly = [Reflection.AssemblyName]::GetAssemblyName($dll.FullName) }
         catch [BadImageFormatException] { continue }
         if ($assembly.Name -in @('osu.Game.Rulesets.Modosu', 'osu.Game.Rulesets.MOsu')) {
-            throw "Autre copie Modosu détectée : $($dll.FullName). Retirez-la manuellement, jeu fermé, avant la bascule. Aucun autre fichier modifié."
+            throw "Another Modosu copy was detected: $($dll.FullName). Close the game and remove it manually before changing modes. No other files were changed."
         }
     }
 }
 
 function Assert-PackageValidated($Context) {
     $file = Join-Path (Split-Path $Context.PackagePath) 'validation.json'
-    if (!(Test-Path -LiteralPath $file)) { throw 'Validation du paquet absente. Installation refusee.' }
+    if (!(Test-Path -LiteralPath $file)) { throw 'Package validation receipt is missing. Installation refused.' }
     $validation = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
     if ($validation.ControlsValidated -isnot [bool] -or !$validation.ControlsValidated -or $validation.DllSha256 -ne (Get-FileHash -LiteralPath $Context.PackagePath).Hash -or
         $validation.CoreSha256 -ne (Get-FileHash -LiteralPath $PSCommandPath).Hash) {
-        throw 'Controles non valides pour cette DLL. Installation refusee ; consultez le guide.'
+        throw 'This DLL does not match a validated package receipt. Installation refused; see the guide.'
     }
 }
 
@@ -222,7 +222,7 @@ function Invoke-OfflineTransition {
     & $Operations.AssertClosed $Context
     Assert-NoAdditionalModosuCopies $Context
     if ($Mode -eq 'Offline') {
-        if (!(Test-Path -LiteralPath $Context.PackagePath -PathType Leaf)) { throw 'Paquet DLL introuvable.' }
+        if (!(Test-Path -LiteralPath $Context.PackagePath -PathType Leaf)) { throw 'Package DLL was not found.' }
         Assert-OwnedDll $Context
         $hash = (Get-FileHash -LiteralPath $Context.PackagePath -Algorithm SHA256).Hash
         & $Operations.Block $Context
@@ -244,7 +244,7 @@ function Invoke-OfflineTransition {
         [IO.Directory]::CreateDirectory($Context.RulesetsDir) | Out-Null
         $staged = Join-Path $Context.RulesetsDir ([Guid]::NewGuid().ToString('N') + '.modosuoffline-pending')
         Copy-Item -LiteralPath $Context.PackagePath -Destination $staged
-        if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash -ne $hash) { throw 'Copie DLL invalide. Réseau toujours bloqué.' }
+        if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash -ne $hash) { throw 'Staged DLL failed its hash check. Network access remains blocked.' }
         Invoke-TransitionCheckpoint $Operations 'Staged'
         # Rename inside rulesets is atomic; a partial copy cannot become a loadable DLL.
         Move-Item -LiteralPath $staged -Destination $Context.DllPath -Force
@@ -266,7 +266,7 @@ function Invoke-OfflineTransition {
             Remove-Item -LiteralPath $path -Force
             Invoke-TransitionCheckpoint $Operations 'Removed'
         }
-        if ((Test-Path -LiteralPath $Context.DllPath) -or (Test-Path -LiteralPath $Context.LegacyDllPath)) { throw 'Retrait DLL incomplet.' }
+        if ((Test-Path -LiteralPath $Context.DllPath) -or (Test-Path -LiteralPath $Context.LegacyDllPath)) { throw 'DLL removal is incomplete.' }
         & $Operations.AssertClosed $Context
         Invoke-TransitionCheckpoint $Operations 'ClosedBeforeUnblock'
         try {
@@ -280,7 +280,7 @@ function Invoke-OfflineTransition {
             # Restore a complete block after a partially failed rule removal.
             # If Windows refuses this too, the DLL is already absent; report both failures.
             try { & $Operations.Block $Context; & $Operations.Verify $Context }
-            catch { throw "Retour en ligne incomplet et restauration du pare-feu refusée : $($_.Exception.Message). DLL retirée ; ne relancez pas le jeu avant diagnostic." }
+            catch { throw "Online transition incomplete and firewall restoration failed: $($_.Exception.Message). The DLL is removed; do not launch the game before running diagnostics." }
             throw $failure
         }
     }

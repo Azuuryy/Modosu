@@ -1,32 +1,27 @@
-# Modosu Offline — entraînement local
+# Modosu Offline
 
-Fork de [p-720/mosu](https://github.com/p-720/mosu) pour Windows, avec une bascule manuelle sur un seul client osu!lazer.
+Modosu is an osu!lazer practice ruleset for local play. This Windows fork includes a manager that blocks lazer's network access before installing the ruleset DLL and removes the DLL before restoring network access.
 
-- **Entraînement hors ligne** : blocage réseau du client et de ses exécutables de mise à jour, puis installation de la DLL.
-- **Jeu en ligne** : retrait de la DLL, puis retrait des seules règles de pare-feu du gestionnaire, jeu fermé.
+## Use
 
-RandomV2, CircleGeneration, imports locaux, profils, scores, statistiques après partie et replays locaux sont conservés. Le partage dans le chat, les suggestions en ligne, les téléchargements automatiques et les compteurs personnalisés PP/étoiles en direct sont retirés. Les mods personnalisés sont explicitement non classés et exclus du multijoueur. Le ruleset s'appelle désormais Modosu (`ShortName = modosu`, `OnlineID = -1`). Les licences et attributions du projet original sont conservées.
+Extract the Windows package outside lazer's `rulesets` folder and follow [`manager/GUIDE.md`](manager/GUIDE.md). Do not install the DLL manually. The manager requires Windows Firewall and administrator approval for firewall changes; lazer itself runs as your normal user.
 
-**Aucune DLL ne doit être installée manuellement dans le jeu.** Lire le [guide du gestionnaire](manager/GUIDE.md). La DLL seule ne bloque pas toutes les communications : le pare-feu externe est indispensable.
+The project keeps local practice mods, profiles, scores, statistics, and replays. The network block applies to the whole lazer client, including when another ruleset is selected. Online mode is restored manually through the manager.
 
-## Construire et valider
+## Build
 
-Cloner avec le sous-module `osu` (`git clone --recurse-submodules`). Installer .NET 10 puis, dans PowerShell :
+Requirements: Windows, .NET 10, and the `osu` submodule.
 
 ```powershell
+git clone --recurse-submodules https://github.com/Debuzzz/mosu-offline.git
+cd mosu-offline
 dotnet restore Modosu.sln --packages .cache/nuget
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Validate-Package.ps1
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Build-Bundle.ps1
 ```
 
-L’archive est `artifacts/ModosuOffline-Windows.zip`. La compilation seule (`Build-Package.ps1`) et l’artefact GitHub Actions produisent un paquet verrouillé en attendant les contrôles Windows. La validation ne touche pas l’installation du jeu. [Rapport de validation de cette version](manager/VALIDATION.md).
+The ZIP is written to `artifacts/ModosuOffline-Windows.zip`. Validation does not install anything into lazer. A successful package validation does not confirm compatibility with every lazer version or imply osu! team approval; the protected first launch must confirm that lazer actually loaded the ruleset.
 
-Le [paquet Windows de cette livraison](delivery/ModosuOffline-Windows.zip) contient la DLL et le gestionnaire validés sur les contrôles décrits dans ce rapport. Le chargement par le client officiel reste à confirmer.
+## Project history
 
-Pour remplacer le précédent paquet MOsu, fermer lazer, extraire ce nouveau paquet dans un dossier séparé et utiliser son gestionnaire. Il reprend l'ancien journal, sauvegarde puis retire l'ancienne DLL avant d'installer Modosu, avec le réseau toujours bloqué. Les profils, paramètres, scores et préréglages locaux sont migrés au chargement. Voir le [guide de migration](manager/GUIDE.md#migration-depuis-le-paquet-mosu).
-
-## Compatibilité
-
-Le client officiel doit accepter le ruleset sans modification de ses contrôles. Le gestionnaire exige une confirmation réelle de chargement lors du lancement protégé ; sinon il signale une incompatibilité et garde le réseau bloqué. Cette version ne garantit ni une compatibilité avec les nouvelles versions de lazer ni une approbation par l’équipe osu!.
-
-Les informations, attributions et captures historiques du projet original sont conservées dans [README.upstream.md](README.upstream.md). Ce document décrit l’ancienne version et ses instructions d’installation ne s’appliquent pas à ce fork.
+This project derives from [p-720/mosu](https://github.com/p-720/mosu). Historical documentation and attribution are preserved in [`README.upstream.md`](README.upstream.md).

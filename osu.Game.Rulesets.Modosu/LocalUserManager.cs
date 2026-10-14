@@ -352,6 +352,7 @@ namespace osu.Game.Rulesets.Modosu
             return await Task.Run(() =>
             {
                 var allScores = GetBestScores(username, ruleset);
+                var recordedScores = GetAllScores(username, ruleset);
 
                 // Play count is persisted per profile in the profile JSON, incremented when a score is recorded.
                 int playCount = getProfiles().FirstOrDefault(p => p.Name == username)?.PlayCount ?? 0;
@@ -362,6 +363,8 @@ namespace osu.Game.Rulesets.Modosu
                 // --- Rank History Calculation (Last 90 Days) ---
                 var rankHistoryData = new int[90];
                 var today = DateTimeOffset.UtcNow.Date;
+                var firstHistoryDate = today.AddDays(-89);
+                bool hasScoresBeforeHistory = scoresWithPP.Any(s => s.Date.Date < firstHistoryDate);
 
                 for (int i = 0; i < 90; i++)
                 {
@@ -373,7 +376,9 @@ namespace osu.Game.Rulesets.Modosu
                     var scoresUpToHistoryDate = scoresWithPP.Where(s => s.Date.Date <= historyDate);
 
                     (var pp, var acc) = CalculateUserTotalPerformanceAggregates(scoresUpToHistoryDate);
-                    rankHistoryData[i] = (int)pp;
+                    // If there is no PP history before the graph window, start at zero.
+                    // This gives the graph a clear baseline before the first local play.
+                    rankHistoryData[i] = i == 0 && !hasScoresBeforeHistory ? 0 : (pp > 0 ? (int)pp : 0);
                 }
 
                 (float currentTotalPP, float accuracy) = CalculateUserTotalPerformanceAggregates(allScores);
@@ -391,16 +396,18 @@ namespace osu.Game.Rulesets.Modosu
                         IsRanked = false,
                         PP = (decimal)currentTotalPP,
                         Accuracy = accuracy,
-                        GlobalRank = (int)currentTotalPP,
+                        GlobalRank = currentTotalPP > 0 ? estimateGlobalRank(currentTotalPP) : null,
                         RankHistory = new APIRankHistory
                         {
                             Data = rankHistoryData,
                             Mode = ruleset.ShortName
                         },
                         PlayCount = playCount,
-                        TotalScore = allScores.Sum(s => s.TotalScore),
-                        PlayTime = (int)allScores.Sum(s => s.BeatmapInfo!.Length) / 3600,
-                        MaxCombo = allScores.Any() ? allScores.Max(s => s.MaxCombo) : 0,
+                        RankedScore = recordedScores.Sum(s => s.TotalScore),
+                        TotalScore = recordedScores.Sum(s => s.TotalScore),
+                        TotalHits = recordedScores.Sum(s => s.Statistics.Where(h => h.Key.IsHit()).Sum(h => h.Value)),
+                        PlayTime = (int)recordedScores.Sum(s => s.BeatmapInfo?.Length ?? 0),
+                        MaxCombo = recordedScores.Any() ? recordedScores.Max(s => s.MaxCombo) : 0,
                         GradesCount = new UserStatistics.Grades
                         {
                             SSPlus = allScores.Count(s => s.Rank == ScoreRank.XH),
@@ -420,6 +427,46 @@ namespace osu.Game.Rulesets.Modosu
         /// </summary>
         public List<ScoreInfo> GetBestScores(string username, RulesetInfo ruleset)
             => queryScores(ruleset, username);
+
+        /// <summary>Gets every locally recorded score for career totals (including scores without PP).</summary>
+        private List<ScoreInfo> GetAllScores(string username, RulesetInfo ruleset)
+            => realm.Run(r => r.All<ScoreInfo>()
+                              .Filter("RealmUser.Username == $0 && DeletePending == false && Ruleset.ShortName == $1 SORT(Date DESC)", username, ruleset.ShortName)
+                              .ToList().Detach());
+
+        // Approximation of the September 2026 sampled osu! PP-to-global-rank curve from
+        // osu-local-profiles (10,000 random profiles). Points are (PP, estimated rank).
+        // The rank is a local estimate, not an official leaderboard position.
+        private static readonly (double pp, int rank)[] rankCurve =
+        {
+            (2.11, 2852394), (45.65, 2142296), (139.97, 1750230), (375.42, 1336787),
+            (721.22, 1020639), (1148.03, 779960), (1621.4, 595532), (2125.51, 454565),
+            (2708.02, 335739), (3302.75, 247883), (3978.95, 177279), (4665.01, 126882),
+            (5403.43, 87234), (6164.53, 58191), (6911.02, 39304), (7677.87, 26024),
+            (8519.1, 16828), (9518.04, 9896), (10741.3, 4951), (11762, 2910),
+            (13010.5, 1549), (15002.6, 553), (17051.7, 211), (18305.4, 120),
+        };
+
+        private static int estimateGlobalRank(double pp)
+        {
+            if (pp <= rankCurve[0].pp)
+                return rankCurve[0].rank;
+            if (pp >= rankCurve[^1].pp)
+                return rankCurve[^1].rank;
+
+            for (int i = 1; i < rankCurve.Length; i++)
+            {
+                if (pp <= rankCurve[i].pp)
+                {
+                    var previous = rankCurve[i - 1];
+                    var next = rankCurve[i];
+                    double progress = (pp - previous.pp) / (next.pp - previous.pp);
+                    return (int)Math.Round(previous.rank + (next.rank - previous.rank) * progress);
+                }
+            }
+
+            return rankCurve[^1].rank;
+        }
 
         /// <summary>
         /// Gets all scores that have a replay file available (Local scores), sorted by PP.

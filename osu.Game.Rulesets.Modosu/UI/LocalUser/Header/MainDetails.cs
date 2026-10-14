@@ -24,9 +24,9 @@ namespace osu.Game.Rulesets.Modosu.UI.LocalUser.Header
         private ProfileValueDisplay medalInfo = null!;
         private ProfileValueDisplay ppInfo = null!;
         private ProfileValueDisplay detailPerformancePoints = null!;
-        private ProfileValueDisplay detailCountryRank = null!;
+        private ProfileValueDisplay detailEstimatedRank = null!;
         private Container rankGraphContainer = null!;
-        private RankGraph rankGraph = null!;
+        private PPGraph rankGraph = null!;
 
         public readonly Bindable<UserProfileData?> User = new Bindable<UserProfileData?>();
 
@@ -69,9 +69,9 @@ namespace osu.Game.Rulesets.Modosu.UI.LocalUser.Header
                                     Title = "Performance points",
                                 },
                                 Empty(),
-                                detailCountryRank = new ProfileValueDisplay(true)
+                                detailEstimatedRank = new ProfileValueDisplay(true)
                                 {
-                                    Title = UsersStrings.ShowRankCountrySimple,
+                                    Title = "Estimated global rank",
                                 },
                                 new DailyChallengeStatsDisplay
                                 {
@@ -166,8 +166,11 @@ namespace osu.Game.Rulesets.Modosu.UI.LocalUser.Header
             detailPerformancePoints.Content.Text = user?.Statistics?.PP != null ? LocalisableString.Interpolate($"{user.Statistics.PP.Value:#,##0}pp") : (LocalisableString)"0pp";
             detailPerformancePoints.Content.TooltipText = getPPInfoTooltipText(user);
 
-            detailCountryRank.Content.Text = user?.Statistics?.CountryRank?.ToLocalisableString("\\##,##0") ?? (LocalisableString)"-";
-            detailCountryRank.Content.TooltipText = getCountryRankTooltipText(user);
+            int? estimatedRank = user?.Statistics?.GlobalRank;
+            detailEstimatedRank.Content.Text = estimatedRank?.ToLocalisableString("\\##,##0") ?? (LocalisableString)"-";
+            detailEstimatedRank.Content.TooltipText = estimatedRank == null
+                ? (LocalisableString)"Earn local PP to estimate a rank."
+                : (LocalisableString)"Offline estimate from a 10,000-profile osu! sample (September 2026); this is not an official leaderboard rank.";
 
             // if(user?.OnlineID <= 1)
             // {
@@ -184,31 +187,6 @@ namespace osu.Game.Rulesets.Modosu.UI.LocalUser.Header
             //     });
             // } else
             rankGraph.Statistics.Value = user?.Statistics;
-        }
-
-        private static LocalisableString getCountryRankTooltipText(APIUser? user)
-        {
-            var variants = user?.Statistics?.Variants;
-
-            LocalisableString? result = null;
-
-            if (variants?.Count > 0)
-            {
-                foreach (var variant in variants)
-                {
-                    if (variant.CountryRank != null)
-                    {
-                        var variantText = LocalisableString.Interpolate($"{variant.VariantType.GetLocalisableDescription()}: {variant.CountryRank.ToLocalisableString("\\##,##0")}");
-
-                        if (result == null)
-                            result = variantText;
-                        else
-                            result = LocalisableString.Interpolate($"{result}\n{variantText}");
-                    }
-                }
-            }
-
-            return result ?? default;
         }
 
         private static LocalisableString getPPInfoTooltipText(APIUser? user)
