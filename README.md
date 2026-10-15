@@ -20,9 +20,9 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Validate-Packa
 powershell -NoProfile -ExecutionPolicy RemoteSigned -File manager/Build-Bundle.ps1
 ```
 
-The ZIP is written to `artifacts/ModosuOffline-Windows.zip`. 
+The ZIP is written to `artifacts/ModosuOffline-Windows.zip`.
 
-Validation does not install anything into lazer. 
+Validation does not install anything into lazer.
 A successful package validation does not confirm compatibility with every lazer version; the protected first launch must confirm that lazer actually loaded the ruleset.
 
 ## Project history

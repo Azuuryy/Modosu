@@ -4,8 +4,8 @@ Requires Windows, PowerShell, and osu!lazer. The manager keeps beatmaps, profile
 
 ## Start an offline practice session
 
-1. Close lazer. 
-2. Run **Launch Modosu Offline.cmd** as a normal user. 
+1. Close lazer.
+2. Run **Launch Modosu Offline.cmd** as a normal user.
 2. Choose **1 — Offline practice** and approve the Windows prompts for firewall changes. The manager launches lazer without elevation.
 3. Wait for **Modosu loaded**. If loading is not confirmed within 60 seconds, close lazer and check the manager's diagnostic. The firewall block remains in place.
 
