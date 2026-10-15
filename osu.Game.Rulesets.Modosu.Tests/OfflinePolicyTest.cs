@@ -8,6 +8,8 @@ using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Modosu.Mods;
 using osu.Game.Rulesets.Osu.Beatmaps;
+using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Scoring;
 using osu.Game.Rulesets.Osu.Objects;
 using osuTK;
 
@@ -41,6 +43,29 @@ namespace osu.Game.Rulesets.Modosu.Tests
                     Assert.That(mod.ValidForMultiplayerAsFreeMod, Is.False, type.Name);
                 });
             }
+        }
+
+        [Test]
+        public void RelaxAndAutopilotScoresRespectLocalPPPreference()
+        {
+            var relaxScore = new ScoreInfo { Mods = new Mod[] { new osu.Game.Rulesets.Modosu.Mods.OsuModRelax() } };
+            var autopilotScore = new ScoreInfo { Mods = new Mod[] { new osu.Game.Rulesets.Modosu.Mods.OsuModAutopilot() } };
+            var osuRelaxScore = new ScoreInfo { Mods = new Mod[] { new osu.Game.Rulesets.Osu.Mods.OsuModRelax() } };
+            var osuAutopilotScore = new ScoreInfo { Mods = new Mod[] { new osu.Game.Rulesets.Osu.Mods.OsuModAutopilot() } };
+            var normalScore = new ScoreInfo();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(relaxScore, false), Is.False);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(autopilotScore, false), Is.False);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(osuRelaxScore, false), Is.False);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(osuAutopilotScore, false), Is.False);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(normalScore, false), Is.True);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(relaxScore, true), Is.True);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(autopilotScore, true), Is.True);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(osuRelaxScore, true), Is.True);
+                Assert.That(LocalUserManager.ShouldIncludeScoreInPP(osuAutopilotScore, true), Is.True);
+            });
         }
 
         [Test]

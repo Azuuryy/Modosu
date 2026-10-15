@@ -10,6 +10,8 @@ using osu.Game.Rulesets.Modosu.Configuration;
 using osu.Game.Rulesets.Modosu.Extensions;
 using osu.Game.Rulesets.Modosu.Models;
 using osu.Game.Rulesets.Osu.Mods;
+using ModosuAutopilot = osu.Game.Rulesets.Modosu.Mods.OsuModAutopilot;
+using ModosuRelax = osu.Game.Rulesets.Modosu.Mods.OsuModRelax;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Framework.Allocation;
@@ -238,6 +240,16 @@ namespace osu.Game.Rulesets.Modosu
             await UpdateUserStatisticsAsync(ruleset).ConfigureAwait(false);
         }
 
+        private async Task RefreshAllProfileStatisticsAsync()
+        {
+            foreach (string profileName in GetProfileNames())
+            {
+                var user = await GetLocalUserWithStatisticsForUsernameAsync(profileName, ruleset.RulesetInfo).ConfigureAwait(false);
+                if (user.Statistics != null)
+                    CacheStatistics(user.Statistics, profileName, ruleset.RulesetInfo);
+            }
+        }
+
         public List<string> GetProfileNames()
         {
             return getProfiles().Select(p => p.Name).OrderBy(n => n).ToList();
@@ -275,6 +287,11 @@ namespace osu.Game.Rulesets.Modosu
             this.config = config;
             this.api = api;
 
+            config.GetBindable<bool>(ModosuRulesetSetting.IncludeRelaxAutopilotPP).BindValueChanged(e =>
+            {
+                _ = RefreshAllProfileStatisticsAsync();
+            });
+
             api.LocalUser.BindValueChanged(_ =>
             {
                 // queuing up requests directly on user change is unsafe, as the API status may have not been updated yet.
@@ -307,7 +324,8 @@ namespace osu.Game.Rulesets.Modosu
 
         public (float totalPp, float totalAccuracy) CalculateUserTotalPerformanceAggregates(IEnumerable<ScoreInfo> scores)
         {
-            ScoreInfo[] groupedScores = scores.ToArray();
+            bool includeRelaxAutopilotPP = config.Get<bool>(ModosuRulesetSetting.IncludeRelaxAutopilotPP);
+            ScoreInfo[] groupedScores = scores.Where(score => ShouldIncludeScoreInPP(score, includeRelaxAutopilotPP)).ToArray();
 
             // Build the diminishing sum
             double factor = 1;
@@ -341,6 +359,11 @@ namespace osu.Game.Rulesets.Modosu
             return ((float)totalPp, (float)totalAccuracy);
         }
 
+        public static bool ShouldIncludeScoreInPP(ScoreInfo score, bool includeRelaxAutopilotPP)
+            => includeRelaxAutopilotPP || score.Mods.All(mod =>
+                mod is not OsuModRelax && mod is not OsuModAutopilot
+                && mod is not ModosuRelax && mod is not ModosuAutopilot);
+
         public async Task<APIUser> GetLocalUserWithStatisticsUncached(RulesetInfo ruleset)
         {
             var username = ActiveProfile.Value ?? api.LocalUser.Value?.Username ?? "unknown";
@@ -358,7 +381,8 @@ namespace osu.Game.Rulesets.Modosu
                 int playCount = getProfiles().FirstOrDefault(p => p.Name == username)?.PlayCount ?? 0;
 
 
-                var scoresWithPP = allScores.Where(s => s.PP.HasValue).ToList();
+                bool includeRelaxAutopilotPP = config.Get<bool>(ModosuRulesetSetting.IncludeRelaxAutopilotPP);
+                var scoresWithPP = allScores.Where(s => s.PP.HasValue && ShouldIncludeScoreInPP(s, includeRelaxAutopilotPP)).ToList();
 
                 // --- Rank History Calculation (Last 90 Days) ---
                 var rankHistoryData = new int[90];

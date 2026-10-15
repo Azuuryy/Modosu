@@ -30,6 +30,7 @@ using osu.Game.Screens; // Required for IPerformFromScreenRunner
 using System.Threading.Tasks;
 using osu.Game.Online.API;
 using osu.Game.Rulesets.Modosu.Database;
+using osu.Game.Rulesets.Modosu.Configuration;
 using osu.Game.Collections;
 using osu.Game.Scoring;
 using osu.Game.Beatmaps;
@@ -67,6 +68,9 @@ namespace osu.Game.Rulesets.Modosu.UI
         [BackgroundDependencyLoader]
         private void load(IAPIProvider api, OsuGame game,GameHost host)
         {
+            var modosuConfig = (ModosuRulesetConfigManager)Config;
+            var includeRelaxAutopilotPP = modosuConfig.GetBindable<bool>(ModosuRulesetSetting.IncludeRelaxAutopilotPP);
+
             // LocalUserManager localUserManager;
             // host.Dependencies.Cache(localUserManager = new LocalUserManager((ModosuRuleset)ruleset, realm, api));
 
@@ -104,6 +108,18 @@ namespace osu.Game.Rulesets.Modosu.UI
                     Text = "Load examples",
                     TooltipText = "Import example collections from embedded JSON file",
                     Action = () => collectionImportProcessor?.ImportInBackground()
+                },
+                new OsuSpriteText
+                {
+                    Text = "Local performance",
+                    Margin = new MarginPadding { Left = 15 },
+                    Font = OsuFont.GetFont(weight: FontWeight.Bold)
+                },
+                new SettingsCheckbox
+                {
+                    LabelText = "Include Relax and Autopilot plays in performance totals",
+                    TooltipText = "When disabled, these plays keep their individual PP but are excluded from local PP, accuracy, estimated rank, and PP history.",
+                    Current = includeRelaxAutopilotPP
                 },
                 new OsuSpriteText
                 {

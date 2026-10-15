@@ -23,6 +23,7 @@ namespace osu.Game.Rulesets.Modosu.Configuration
             SetDefault(ModosuRulesetSetting.ProfilesJson, "[]");
             SetDefault(ModosuRulesetSetting.PresetsImported, false);
             SetDefault(ModosuRulesetSetting.CollectionsImported, false);
+            SetDefault(ModosuRulesetSetting.IncludeRelaxAutopilotPP, false);
         }
     }
 
@@ -33,5 +34,6 @@ namespace osu.Game.Rulesets.Modosu.Configuration
         ProfilesJson,
         PresetsImported,
         CollectionsImported,
+        IncludeRelaxAutopilotPP,
     }
 }
